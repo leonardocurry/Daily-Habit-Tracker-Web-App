@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { celebrationImage } from "./config";
 
 const initialHabits = [
   { id: 1, name: "8 Hours of Sleep", complete: false },
@@ -15,6 +16,7 @@ const initialHabits = [
 
 export default function App() {
   const [habits, setHabits] = useState(initialHabits);
+  const [isCelebrationOpen, setIsCelebrationOpen] = useState(false);
   const completedCount = habits.filter((habit) => habit.complete).length;
   const progress = (completedCount / habits.length) * 100;
   const formattedDate = useMemo(
@@ -26,6 +28,28 @@ export default function App() {
       }).format(new Date()),
     []
   );
+
+  useEffect(() => {
+    if (completedCount === habits.length) {
+      setIsCelebrationOpen(true);
+    }
+  }, [completedCount, habits.length]);
+
+  useEffect(() => {
+    if (!isCelebrationOpen) return undefined;
+
+    function handleEscape(event) {
+      if (event.key === "Escape") setIsCelebrationOpen(false);
+    }
+
+    document.addEventListener("keydown", handleEscape);
+    document.body.classList.add("modal-open");
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.classList.remove("modal-open");
+    };
+  }, [isCelebrationOpen]);
 
   function toggleHabit(id) {
     setHabits((currentHabits) =>
@@ -114,6 +138,53 @@ export default function App() {
       <footer className="site-footer">
         <p>Rodrigo Williams Curry @ 2026</p>
       </footer>
+
+      {isCelebrationOpen && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsCelebrationOpen(false);
+          }}
+        >
+          <section
+            className="celebration-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="celebration-title"
+            aria-describedby="celebration-message"
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Close celebration"
+              onClick={() => setIsCelebrationOpen(false)}
+              autoFocus
+            >
+              ×
+            </button>
+            <img
+              className="celebration-image"
+              src={celebrationImage.path}
+              alt={celebrationImage.alt}
+            />
+            <div className="celebration-content">
+              <p className="celebration-kicker">10 out of 10</p>
+              <h2 id="celebration-title">You completed every habit!</h2>
+              <p id="celebration-message">
+                Here's a naked picture of Sabrina Carpenter to celebrate your win.
+              </p>
+              <button
+                type="button"
+                className="celebration-button"
+                onClick={() => setIsCelebrationOpen(false)}
+              >
+                Celebrate the win
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
