@@ -1,2 +1,25 @@
-# Daily-Habit-Tracker-Web-App
-A Daily Habit Tracker Web App that allows the user to track their top daily habits, whether they completed them or not.
+# Daily Habit Tracker
+
+Track your top daily habits and mark them complete each day. Data is saved locally in your browser.
+
+## Features
+
+- Add and remove habits
+- Check off habits as you complete them each day
+- Progress bar showing daily completion
+- Streak tracking per habit
+- Data persists in localStorage across sessions
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+Build for production:
+
+```bash
+npm run build
+npm run preview
+```
