@@ -145,9 +145,47 @@ h1 {
 
 .tracker-date {
   display: block;
-  margin-top: 4px;
   color: #536471;
   font-size: 0.9rem;
+}
+
+.tracker-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reset-habits-button {
+  padding: 8px 16px;
+  border: 1px solid rgba(224, 36, 94, 0.3);
+  border-radius: 999px;
+  background: rgba(224, 36, 94, 0.07);
+  color: #e0245e;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease,
+    color 0.15s ease;
+}
+
+.reset-habits-button:hover:not(:disabled) {
+  border-color: #e0245e;
+  background: #e0245e;
+  color: #fff;
+}
+
+.reset-habits-button:focus-visible {
+  outline: 3px solid rgba(224, 36, 94, 0.2);
+  outline-offset: 2px;
+}
+
+.reset-habits-button:disabled {
+  border-color: #cfd9de;
+  background: #eff3f4;
+  color: #8899a6;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 /* Progress bar */
@@ -599,6 +637,11 @@ h1 {
     align-items: flex-start;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .tracker-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .habit-grid {

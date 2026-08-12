@@ -59,6 +59,13 @@ export default function App() {
     );
   }
 
+  function resetHabits() {
+    setHabits((currentHabits) =>
+      currentHabits.map((habit) => ({ ...habit, complete: false }))
+    );
+    setIsCelebrationOpen(false);
+  }
+
   return (
     <div className="app-shell">
       <main className="container">
@@ -80,7 +87,17 @@ export default function App() {
               <p className="tracker-kicker">Today's habits</p>
               <h2 id="tracker-title">Your daily ten</h2>
             </div>
-            <time className="tracker-date">{formattedDate}</time>
+            <div className="tracker-actions">
+              <time className="tracker-date">{formattedDate}</time>
+              <button
+                type="button"
+                className="reset-habits-button"
+                onClick={resetHabits}
+                disabled={completedCount === 0}
+              >
+                Reset
+              </button>
+            </div>
           </div>
 
           <div className="daily-progress">
