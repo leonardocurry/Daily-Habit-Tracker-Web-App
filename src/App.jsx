@@ -14,9 +14,17 @@ const initialHabits = [
   { id: 10, name: "Exercise", complete: false }
 ];
 
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function App() {
   const [habits, setHabits] = useState(initialHabits);
   const [isCelebrationOpen, setIsCelebrationOpen] = useState(false);
+  const [currentDateKey, setCurrentDateKey] = useState(getLocalDateKey);
   const completedCount = habits.filter((habit) => habit.complete).length;
   const progress = (completedCount / habits.length) * 100;
   const formattedDate = useMemo(
@@ -26,8 +34,46 @@ export default function App() {
         month: "long",
         day: "numeric"
       }).format(new Date()),
-    []
+    [currentDateKey]
   );
+
+  function resetHabits() {
+    setHabits((currentHabits) =>
+      currentHabits.map((habit) => ({ ...habit, complete: false }))
+    );
+    setIsCelebrationOpen(false);
+  }
+
+  useEffect(() => {
+    function moveToCurrentDay() {
+      const latestDateKey = getLocalDateKey();
+
+      if (currentDateKey !== latestDateKey) {
+        resetHabits();
+        setCurrentDateKey(latestDateKey);
+      }
+    }
+
+    const now = new Date();
+    const nextMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1
+    );
+    const midnightTimer = window.setTimeout(
+      moveToCurrentDay,
+      nextMidnight.getTime() - now.getTime() + 100
+    );
+
+    document.addEventListener("visibilitychange", moveToCurrentDay);
+    window.addEventListener("focus", moveToCurrentDay);
+
+    return () => {
+      window.clearTimeout(midnightTimer);
+      document.removeEventListener("visibilitychange", moveToCurrentDay);
+      window.removeEventListener("focus", moveToCurrentDay);
+    };
+  }, [currentDateKey]);
 
   useEffect(() => {
     if (completedCount === habits.length) {
@@ -57,13 +103,6 @@ export default function App() {
         habit.id === id ? { ...habit, complete: !habit.complete } : habit
       )
     );
-  }
-
-  function resetHabits() {
-    setHabits((currentHabits) =>
-      currentHabits.map((habit) => ({ ...habit, complete: false }))
-    );
-    setIsCelebrationOpen(false);
   }
 
   return (
