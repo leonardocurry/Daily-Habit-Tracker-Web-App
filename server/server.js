@@ -75,6 +75,34 @@ const uncompleteHabit = database.prepare(`
   DELETE FROM habit_completions WHERE habit_id = ? AND completion_date = ?
 `);
 const resetDate = database.prepare("DELETE FROM habit_completions WHERE completion_date = ?");
+const selectCompletionDates = database.prepare(`
+  SELECT completion_date
+  FROM habit_completions
+  WHERE habit_id = ? AND completion_date <= ?
+  ORDER BY completion_date
+`);
+const selectPerfectDates = database.prepare(`
+  SELECT habit_completions.completion_date
+  FROM habit_completions
+  JOIN habits ON habits.id = habit_completions.habit_id
+  WHERE habits.active = 1 AND habit_completions.completion_date <= ?
+  GROUP BY habit_completions.completion_date
+  HAVING COUNT(DISTINCT habit_completions.habit_id) = (
+    SELECT COUNT(*) FROM habits WHERE active = 1
+  )
+  ORDER BY habit_completions.completion_date
+`);
+const selectHistoryCompletions = database.prepare(`
+  SELECT habit_completions.habit_id, habit_completions.completion_date
+  FROM habit_completions
+  JOIN habits ON habits.id = habit_completions.habit_id
+  WHERE habits.active = 1
+    AND habit_completions.completion_date BETWEEN ? AND ?
+  ORDER BY habit_completions.completion_date, habits.position
+`);
+const selectActiveHabits = database.prepare(`
+  SELECT id, name FROM habits WHERE active = 1 ORDER BY position
+`);
 
 function isValidDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return false;
@@ -90,6 +118,35 @@ function parseDate(request, response) {
     return null;
   }
   return date;
+}
+
+function shiftDate(date, days) {
+  const [year, month, day] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
+function calculateStreaks(completionDates, currentDate) {
+  if (!completionDates.length) return { current: 0, longest: 0 };
+
+  const completed = new Set(completionDates);
+  let current = 0;
+  let cursor = completed.has(currentDate) ? currentDate : shiftDate(currentDate, -1);
+  while (completed.has(cursor)) {
+    current += 1;
+    cursor = shiftDate(cursor, -1);
+  }
+
+  let longest = 0;
+  let running = 0;
+  let previousDate = null;
+  for (const completionDate of completionDates) {
+    running = previousDate && shiftDate(previousDate, 1) === completionDate ? running + 1 : 1;
+    longest = Math.max(longest, running);
+    previousDate = completionDate;
+  }
+
+  return { current, longest };
 }
 
 const app = express();
@@ -125,6 +182,55 @@ app.delete("/api/completions", (request, response) => {
   if (!date) return;
   const result = resetDate.run(date);
   response.json({ date, resetCount: result.changes });
+});
+
+app.get("/api/metrics/streaks", (request, response) => {
+  const date = parseDate(request, response);
+  if (!date) return;
+
+  const habitId = Number(request.query.habitId);
+  if (!Number.isInteger(habitId) || !selectHabit.get(habitId)) {
+    response.status(404).json({ error: "Habit not found." });
+    return;
+  }
+
+  const completionDates = selectCompletionDates
+    .all(habitId, date)
+    .map((row) => row.completion_date);
+  response.json({ habitId, date, ...calculateStreaks(completionDates, date) });
+});
+
+app.get("/api/metrics/perfect-days", (request, response) => {
+  const date = parseDate(request, response);
+  if (!date) return;
+
+  const monthKey = date.slice(0, 7);
+  const perfectDates = selectPerfectDates.all(date).map((row) => row.completion_date);
+  response.json({
+    date,
+    thisMonth: perfectDates.filter((perfectDate) => perfectDate.startsWith(monthKey)).length,
+    allTime: perfectDates.length
+  });
+});
+
+app.get("/api/metrics/history", (request, response) => {
+  const date = parseDate(request, response);
+  if (!date) return;
+
+  const dates = Array.from({ length: 7 }, (_, index) => shiftDate(date, index - 6));
+  const completionKeys = new Set(
+    selectHistoryCompletions
+      .all(dates[0], date)
+      .map((row) => `${row.habit_id}:${row.completion_date}`)
+  );
+  const habits = selectActiveHabits.all().map((habit) => ({
+    ...habit,
+    completions: dates.map((historyDate) =>
+      completionKeys.has(`${habit.id}:${historyDate}`)
+    )
+  }));
+
+  response.json({ startDate: dates[0], endDate: date, dates, habits });
 });
 
 app.use(express.static(path.join(projectRoot, "dist")));

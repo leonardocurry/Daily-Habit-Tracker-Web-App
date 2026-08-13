@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { celebrationImage } from "./config";
 
+const STREAK_HABIT_ID = 6;
+
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -25,6 +27,12 @@ export default function App() {
   const [pendingHabitIds, setPendingHabitIds] = useState([]);
   const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState("");
+  const [streaks, setStreaks] = useState({ current: 0, longest: 0 });
+  const [isStreakLoading, setIsStreakLoading] = useState(true);
+  const [perfectDays, setPerfectDays] = useState({ thisMonth: 0, allTime: 0 });
+  const [isPerfectDaysLoading, setIsPerfectDaysLoading] = useState(true);
+  const [habitHistory, setHabitHistory] = useState({ dates: [], habits: [] });
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const completedCount = habits.filter((habit) => habit.complete).length;
   const progress = habits.length ? (completedCount / habits.length) * 100 : 0;
   const formattedDate = useMemo(
@@ -56,6 +64,55 @@ export default function App() {
     return () => {
       ignore = true;
     };
+  }, [currentDateKey]);
+
+  async function loadStreaks(date = currentDateKey) {
+    setIsStreakLoading(true);
+    try {
+      const loadedStreaks = await request(
+        `/api/metrics/streaks?habitId=${STREAK_HABIT_ID}&date=${date}`
+      );
+      setStreaks({ current: loadedStreaks.current, longest: loadedStreaks.longest });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsStreakLoading(false);
+    }
+  }
+
+  async function loadPerfectDays(date = currentDateKey) {
+    setIsPerfectDaysLoading(true);
+    try {
+      const loadedPerfectDays = await request(
+        `/api/metrics/perfect-days?date=${date}`
+      );
+      setPerfectDays({
+        thisMonth: loadedPerfectDays.thisMonth,
+        allTime: loadedPerfectDays.allTime
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsPerfectDaysLoading(false);
+    }
+  }
+
+  async function loadHabitHistory(date = currentDateKey) {
+    setIsHistoryLoading(true);
+    try {
+      const loadedHistory = await request(`/api/metrics/history?date=${date}`);
+      setHabitHistory({ dates: loadedHistory.dates, habits: loadedHistory.habits });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadStreaks(currentDateKey);
+    loadPerfectDays(currentDateKey);
+    loadHabitHistory(currentDateKey);
   }, [currentDateKey]);
 
   useEffect(() => {
@@ -130,6 +187,9 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ complete: nextComplete })
       });
+      const metricRequests = [loadPerfectDays(), loadHabitHistory()];
+      if (id === STREAK_HABIT_ID) metricRequests.push(loadStreaks());
+      await Promise.all(metricRequests);
     } catch (requestError) {
       setHabits((currentHabits) =>
         currentHabits.map((item) =>
@@ -152,6 +212,7 @@ export default function App() {
         currentHabits.map((habit) => ({ ...habit, complete: false }))
       );
       setIsCelebrationOpen(false);
+      await Promise.all([loadStreaks(), loadPerfectDays(), loadHabitHistory()]);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -248,6 +309,121 @@ export default function App() {
             ))}
           </div>
           )}
+        </section>
+
+        <section className="metrics" aria-labelledby="metrics-title">
+          <div className="metrics-header">
+            <div>
+              <p className="tracker-kicker">Progress insights</p>
+              <h2 id="metrics-title">Metrics</h2>
+            </div>
+            <p>Built from your saved daily history</p>
+          </div>
+
+          <article className="streak-metric" aria-labelledby="streak-title">
+            <div className="streak-intro">
+              <span className="streak-icon" aria-hidden="true">↗</span>
+              <div>
+                <p>Habit streak</p>
+                <h3 id="streak-title">No Masturbation</h3>
+              </div>
+            </div>
+            <div className="streak-values" aria-live="polite">
+              <div>
+                <span className="streak-value">
+                  {isStreakLoading ? "—" : streaks.current}
+                </span>
+                <span className="streak-label">Current streak</span>
+                <span className="streak-unit">days</span>
+              </div>
+              <div>
+                <span className="streak-value">
+                  {isStreakLoading ? "—" : streaks.longest}
+                </span>
+                <span className="streak-label">Longest streak</span>
+                <span className="streak-unit">days</span>
+              </div>
+            </div>
+          </article>
+
+          <article className="perfect-day-metric" aria-labelledby="perfect-day-title">
+            <div className="perfect-day-intro">
+              <span className="perfect-day-icon" aria-hidden="true">✓</span>
+              <div>
+                <p>Full completion</p>
+                <h3 id="perfect-day-title">Perfect days</h3>
+                <span>A day when all ten habits are completed</span>
+              </div>
+            </div>
+            <div className="perfect-day-values" aria-live="polite">
+              <div>
+                <span className="perfect-day-value">
+                  {isPerfectDaysLoading ? "—" : perfectDays.thisMonth}
+                </span>
+                <span className="perfect-day-label">This month</span>
+              </div>
+              <div>
+                <span className="perfect-day-value">
+                  {isPerfectDaysLoading ? "—" : perfectDays.allTime}
+                </span>
+                <span className="perfect-day-label">All time</span>
+              </div>
+            </div>
+          </article>
+
+          <article className="history-metric" aria-labelledby="history-title">
+            <div className="history-heading">
+              <div>
+                <p>Last seven days</p>
+                <h3 id="history-title">Habit history</h3>
+              </div>
+              <div className="history-legend" aria-label="History legend">
+                <span><i className="legend-complete" />Completed</span>
+                <span><i className="legend-incomplete" />Incomplete</span>
+              </div>
+            </div>
+
+            {isHistoryLoading ? (
+              <p className="history-loading" role="status">Loading habit history…</p>
+            ) : (
+              <div className="history-scroll" tabIndex="0" aria-label="Scrollable seven-day habit history">
+                <div
+                  className="history-grid"
+                  style={{ gridTemplateColumns: `minmax(190px, 1fr) repeat(${habitHistory.dates.length}, 58px)` }}
+                >
+                  <div className="history-corner">Habit</div>
+                  {habitHistory.dates.map((date) => {
+                    const dateValue = new Date(`${date}T00:00:00`);
+                    return (
+                      <time
+                        className={`history-date${date === currentDateKey ? " is-today" : ""}`}
+                        dateTime={date}
+                        key={date}
+                      >
+                        <span>{new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(dateValue)}</span>
+                        <strong>{dateValue.getDate()}</strong>
+                      </time>
+                    );
+                  })}
+
+                  {habitHistory.habits.map((habit) => (
+                    <div className="history-row" key={habit.id}>
+                      <div className="history-habit-name">{habit.name}</div>
+                      {habit.completions.map((complete, index) => (
+                        <div
+                          className={`history-cell${complete ? " is-complete" : ""}${habitHistory.dates[index] === currentDateKey ? " is-today" : ""}`}
+                          aria-label={`${habit.name} on ${habitHistory.dates[index]}: ${complete ? "completed" : "incomplete"}`}
+                          key={habitHistory.dates[index]}
+                        >
+                          <span aria-hidden="true">{complete ? "✓" : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </article>
         </section>
       </main>
 
