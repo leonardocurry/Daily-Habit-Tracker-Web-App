@@ -1,19 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { celebrationImage } from "./config";
 
-const initialHabits = [
-  { id: 1, name: "8 Hours of Sleep", complete: false },
-  { id: 2, name: "Brush Teeth + Floss", complete: false },
-  { id: 3, name: "Eat Vegetables", complete: false },
-  { id: 4, name: "10K Steps", complete: false },
-  { id: 5, name: "Skin Care Routine", complete: false },
-  { id: 6, name: "No Masturbation", complete: false },
-  { id: 7, name: "No Alcohol/Weed", complete: false },
-  { id: 8, name: "Read for 30 minutes", complete: false },
-  { id: 9, name: "Drink 8 Glasses of Water", complete: false },
-  { id: 10, name: "Exercise", complete: false }
-];
-
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -21,12 +8,25 @@ function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+async function request(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || "Something went wrong. Please try again.");
+  }
+  return response.json();
+}
+
 export default function App() {
-  const [habits, setHabits] = useState(initialHabits);
+  const [habits, setHabits] = useState([]);
   const [isCelebrationOpen, setIsCelebrationOpen] = useState(false);
   const [currentDateKey, setCurrentDateKey] = useState(getLocalDateKey);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingHabitIds, setPendingHabitIds] = useState([]);
+  const [isResetting, setIsResetting] = useState(false);
+  const [error, setError] = useState("");
   const completedCount = habits.filter((habit) => habit.complete).length;
-  const progress = (completedCount / habits.length) * 100;
+  const progress = habits.length ? (completedCount / habits.length) * 100 : 0;
   const formattedDate = useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
@@ -37,19 +37,33 @@ export default function App() {
     [currentDateKey]
   );
 
-  function resetHabits() {
-    setHabits((currentHabits) =>
-      currentHabits.map((habit) => ({ ...habit, complete: false }))
-    );
-    setIsCelebrationOpen(false);
-  }
+  useEffect(() => {
+    let ignore = false;
+    setIsLoading(true);
+    setError("");
+
+    request(`/api/habits?date=${currentDateKey}`)
+      .then((loadedHabits) => {
+        if (!ignore) setHabits(loadedHabits);
+      })
+      .catch((requestError) => {
+        if (!ignore) setError(requestError.message);
+      })
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentDateKey]);
 
   useEffect(() => {
     function moveToCurrentDay() {
       const latestDateKey = getLocalDateKey();
 
       if (currentDateKey !== latestDateKey) {
-        resetHabits();
+        setIsCelebrationOpen(false);
         setCurrentDateKey(latestDateKey);
       }
     }
@@ -76,7 +90,7 @@ export default function App() {
   }, [currentDateKey]);
 
   useEffect(() => {
-    if (completedCount === habits.length) {
+    if (habits.length > 0 && completedCount === habits.length) {
       setIsCelebrationOpen(true);
     }
   }, [completedCount, habits.length]);
@@ -97,12 +111,52 @@ export default function App() {
     };
   }, [isCelebrationOpen]);
 
-  function toggleHabit(id) {
+  async function toggleHabit(id) {
+    const habit = habits.find((item) => item.id === id);
+    if (!habit || pendingHabitIds.includes(id)) return;
+
+    const nextComplete = !habit.complete;
+    setError("");
+    setPendingHabitIds((currentIds) => [...currentIds, id]);
     setHabits((currentHabits) =>
-      currentHabits.map((habit) =>
-        habit.id === id ? { ...habit, complete: !habit.complete } : habit
+      currentHabits.map((item) =>
+        item.id === id ? { ...item, complete: nextComplete } : item
       )
     );
+
+    try {
+      await request(`/api/habits/${id}/completion?date=${currentDateKey}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ complete: nextComplete })
+      });
+    } catch (requestError) {
+      setHabits((currentHabits) =>
+        currentHabits.map((item) =>
+          item.id === id ? { ...item, complete: habit.complete } : item
+        )
+      );
+      setError(requestError.message);
+    } finally {
+      setPendingHabitIds((currentIds) => currentIds.filter((itemId) => itemId !== id));
+    }
+  }
+
+  async function resetHabits() {
+    setError("");
+    setIsResetting(true);
+
+    try {
+      await request(`/api/completions?date=${currentDateKey}`, { method: "DELETE" });
+      setHabits((currentHabits) =>
+        currentHabits.map((habit) => ({ ...habit, complete: false }))
+      );
+      setIsCelebrationOpen(false);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsResetting(false);
+    }
   }
 
   return (
@@ -121,6 +175,7 @@ export default function App() {
         </section>
 
         <section className="tracker" aria-labelledby="tracker-title">
+          {error && <p className="error-message" role="alert">{error}</p>}
           <div className="tracker-header">
             <div>
               <p className="tracker-kicker">Today's habits</p>
@@ -132,9 +187,9 @@ export default function App() {
                 type="button"
                 className="reset-habits-button"
                 onClick={resetHabits}
-                disabled={completedCount === 0}
+                disabled={completedCount === 0 || isResetting || pendingHabitIds.length > 0}
               >
-                Reset
+                {isResetting ? "Resetting…" : "Reset"}
               </button>
             </div>
           </div>
@@ -161,6 +216,9 @@ export default function App() {
             )}
           </div>
 
+          {isLoading ? (
+            <p className="tracker-loading" role="status">Loading today's habits…</p>
+          ) : (
           <div className="habit-grid">
             {habits.map((habit) => (
               <article
@@ -181,6 +239,7 @@ export default function App() {
                   className="habit-toggle"
                   aria-pressed={habit.complete}
                   onClick={() => toggleHabit(habit.id)}
+                  disabled={pendingHabitIds.includes(habit.id) || isResetting}
                 >
                   <span aria-hidden="true">{habit.complete ? "✓" : "○"}</span>
                   {habit.complete ? "Done for today" : "Mark as complete"}
@@ -188,6 +247,7 @@ export default function App() {
               </article>
             ))}
           </div>
+          )}
         </section>
       </main>
 

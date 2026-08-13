@@ -120,6 +120,23 @@ h1 {
   box-shadow: 0 20px 60px rgba(15, 20, 25, 0.07);
 }
 
+.error-message {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border: 1px solid rgba(224, 36, 94, 0.2);
+  border-radius: 12px;
+  background: rgba(224, 36, 94, 0.07);
+  color: #a51845;
+  font-size: 0.9rem;
+}
+
+.tracker-loading {
+  margin: 0;
+  padding: 42px 20px;
+  color: #536471;
+  text-align: center;
+}
+
 .tracker-header {
   display: flex;
   align-items: flex-end;
@@ -314,6 +331,11 @@ h1 {
 .habit-toggle:hover {
   border-color: #e0245e;
   color: #e0245e;
+}
+
+.habit-toggle:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .is-complete .habit-toggle {
