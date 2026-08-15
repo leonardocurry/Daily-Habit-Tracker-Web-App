@@ -3,6 +3,14 @@ import { celebrationImage } from "./config";
 
 const STREAK_HABIT_ID = 6;
 
+// Replace each URL and icon filename with your social media details.
+// SVG icon files belong in the public/icons folder.
+const socialLinks = [
+  { name: "Instagram", url: "https://www.instagram.com/leonardocurry/", icon: "/icons/instagram.svg" },
+  { name: "X", url: "https://x.com/LeonardoCurry", icon: "/icons/x.svg" },
+  { name: "Github", url: "https://github.com/leonardocurry", icon: "/icons/github.svg" }
+];
+
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -428,7 +436,20 @@ export default function App() {
       </main>
 
       <footer className="site-footer">
-        <p>Rodrigo Williams Curry @ 2026</p>
+        <p>Leonardo James Curry @ 2026</p>
+        <nav className="social-bar" aria-label="Social media links">
+          {socialLinks.map((socialLink) => (
+            <a
+              href={socialLink.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={socialLink.name}
+              key={socialLink.name}
+            >
+              <img src={socialLink.icon} alt="" />
+            </a>
+          ))}
+        </nav>
       </footer>
 
       {isCelebrationOpen && (

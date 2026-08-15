@@ -915,10 +915,31 @@ h1 {
 }
 
 .site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 0 20px 32px;
   color: #536471;
   font-size: 0.9rem;
   text-align: center;
+}
+
+.social-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.social-bar a {
+  display: block;
+  line-height: 0;
+}
+
+.social-bar img {
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 .site-footer p {
