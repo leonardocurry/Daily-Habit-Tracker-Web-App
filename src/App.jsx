@@ -18,6 +18,11 @@ function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function getPreviousDateKey(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return getLocalDateKey(new Date(year, month - 1, day - 1));
+}
+
 async function request(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -30,7 +35,8 @@ async function request(url, options) {
 export default function App() {
   const [habits, setHabits] = useState([]);
   const [isCelebrationOpen, setIsCelebrationOpen] = useState(false);
-  const [currentDateKey, setCurrentDateKey] = useState(getLocalDateKey);
+  const [todayDateKey, setTodayDateKey] = useState(getLocalDateKey);
+  const [selectedDateKey, setSelectedDateKey] = useState(getLocalDateKey);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingHabitIds, setPendingHabitIds] = useState([]);
   const [isResetting, setIsResetting] = useState(false);
@@ -43,14 +49,16 @@ export default function App() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const completedCount = habits.filter((habit) => habit.complete).length;
   const progress = habits.length ? (completedCount / habits.length) * 100 : 0;
+  const yesterdayDateKey = getPreviousDateKey(todayDateKey);
+  const isViewingYesterday = selectedDateKey === yesterdayDateKey;
   const formattedDate = useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
         weekday: "long",
         month: "long",
         day: "numeric"
-      }).format(new Date()),
-    [currentDateKey]
+      }).format(new Date(`${selectedDateKey}T00:00:00`)),
+    [selectedDateKey]
   );
 
   useEffect(() => {
@@ -58,7 +66,7 @@ export default function App() {
     setIsLoading(true);
     setError("");
 
-    request(`/api/habits?date=${currentDateKey}`)
+    request(`/api/habits?date=${selectedDateKey}`)
       .then((loadedHabits) => {
         if (!ignore) setHabits(loadedHabits);
       })
@@ -72,9 +80,9 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [currentDateKey]);
+  }, [selectedDateKey]);
 
-  async function loadStreaks(date = currentDateKey) {
+  async function loadStreaks(date = selectedDateKey) {
     setIsStreakLoading(true);
     try {
       const loadedStreaks = await request(
@@ -88,7 +96,7 @@ export default function App() {
     }
   }
 
-  async function loadPerfectDays(date = currentDateKey) {
+  async function loadPerfectDays(date = selectedDateKey) {
     setIsPerfectDaysLoading(true);
     try {
       const loadedPerfectDays = await request(
@@ -105,7 +113,7 @@ export default function App() {
     }
   }
 
-  async function loadHabitHistory(date = currentDateKey) {
+  async function loadHabitHistory(date = selectedDateKey) {
     setIsHistoryLoading(true);
     try {
       const loadedHistory = await request(`/api/metrics/history?date=${date}`);
@@ -118,18 +126,19 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadStreaks(currentDateKey);
-    loadPerfectDays(currentDateKey);
-    loadHabitHistory(currentDateKey);
-  }, [currentDateKey]);
+    loadStreaks(selectedDateKey);
+    loadPerfectDays(selectedDateKey);
+    loadHabitHistory(selectedDateKey);
+  }, [selectedDateKey]);
 
   useEffect(() => {
     function moveToCurrentDay() {
       const latestDateKey = getLocalDateKey();
 
-      if (currentDateKey !== latestDateKey) {
+      if (todayDateKey !== latestDateKey) {
         setIsCelebrationOpen(false);
-        setCurrentDateKey(latestDateKey);
+        setTodayDateKey(latestDateKey);
+        setSelectedDateKey(latestDateKey);
       }
     }
 
@@ -152,13 +161,17 @@ export default function App() {
       document.removeEventListener("visibilitychange", moveToCurrentDay);
       window.removeEventListener("focus", moveToCurrentDay);
     };
-  }, [currentDateKey]);
+  }, [todayDateKey]);
 
   useEffect(() => {
-    if (habits.length > 0 && completedCount === habits.length) {
+    if (
+      selectedDateKey === todayDateKey &&
+      habits.length > 0 &&
+      completedCount === habits.length
+    ) {
       setIsCelebrationOpen(true);
     }
-  }, [completedCount, habits.length]);
+  }, [completedCount, habits.length, selectedDateKey, todayDateKey]);
 
   useEffect(() => {
     if (!isCelebrationOpen) return undefined;
@@ -190,7 +203,7 @@ export default function App() {
     );
 
     try {
-      await request(`/api/habits/${id}/completion?date=${currentDateKey}`, {
+      await request(`/api/habits/${id}/completion?date=${selectedDateKey}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ complete: nextComplete })
@@ -215,7 +228,7 @@ export default function App() {
     setIsResetting(true);
 
     try {
-      await request(`/api/completions?date=${currentDateKey}`, { method: "DELETE" });
+      await request(`/api/completions?date=${selectedDateKey}`, { method: "DELETE" });
       setHabits((currentHabits) =>
         currentHabits.map((habit) => ({ ...habit, complete: false }))
       );
@@ -251,6 +264,24 @@ export default function App() {
               <h2 id="tracker-title">Your daily ten</h2>
             </div>
             <div className="tracker-actions">
+              <div className="day-picker" aria-label="Choose a day to edit">
+                <button
+                  type="button"
+                  className={isViewingYesterday ? "" : "is-active"}
+                  aria-pressed={!isViewingYesterday}
+                  onClick={() => setSelectedDateKey(todayDateKey)}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  className={isViewingYesterday ? "is-active" : ""}
+                  aria-pressed={isViewingYesterday}
+                  onClick={() => setSelectedDateKey(yesterdayDateKey)}
+                >
+                  Yesterday
+                </button>
+              </div>
               <time className="tracker-date">{formattedDate}</time>
               <button
                 type="button"
@@ -262,6 +293,12 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {isViewingYesterday && (
+            <p className="editing-day-notice" role="status">
+              Editing yesterday's habits
+            </p>
+          )}
 
           <div className="daily-progress">
             <div className="progress-header">
@@ -404,7 +441,7 @@ export default function App() {
                     const dateValue = new Date(`${date}T00:00:00`);
                     return (
                       <time
-                        className={`history-date${date === currentDateKey ? " is-today" : ""}`}
+                        className={`history-date${date === todayDateKey ? " is-today" : ""}`}
                         dateTime={date}
                         key={date}
                       >
@@ -419,7 +456,7 @@ export default function App() {
                       <div className="history-habit-name">{habit.name}</div>
                       {habit.completions.map((complete, index) => (
                         <div
-                          className={`history-cell${complete ? " is-complete" : ""}${habitHistory.dates[index] === currentDateKey ? " is-today" : ""}`}
+                          className={`history-cell${complete ? " is-complete" : ""}${habitHistory.dates[index] === todayDateKey ? " is-today" : ""}`}
                           aria-label={`${habit.name} on ${habitHistory.dates[index]}: ${complete ? "completed" : "incomplete"}`}
                           key={habitHistory.dates[index]}
                         >

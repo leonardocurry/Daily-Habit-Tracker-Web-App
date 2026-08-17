@@ -172,6 +172,48 @@ h1 {
   gap: 12px;
 }
 
+.day-picker {
+  display: flex;
+  padding: 3px;
+  border: 1px solid #e1e8ed;
+  border-radius: 999px;
+  background: #f7f9f9;
+}
+
+.day-picker button {
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #536471;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.day-picker button.is-active {
+  background: #fff;
+  color: #e0245e;
+  box-shadow: 0 1px 4px rgba(15, 20, 25, 0.1);
+}
+
+.day-picker button:focus-visible {
+  outline: 2px solid rgba(224, 36, 94, 0.3);
+  outline-offset: 1px;
+}
+
+.editing-day-notice {
+  margin: -8px 0 20px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(224, 36, 94, 0.07);
+  color: #a51845;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .reset-habits-button {
   padding: 8px 16px;
   border: 1px solid rgba(224, 36, 94, 0.3);
@@ -1088,7 +1130,18 @@ h1 {
 
   .tracker-actions {
     width: 100%;
+    align-items: flex-start;
+    flex-wrap: wrap;
     justify-content: space-between;
+  }
+
+  .day-picker {
+    width: 100%;
+    order: -1;
+  }
+
+  .day-picker button {
+    flex: 1;
   }
 
   .habit-grid {
